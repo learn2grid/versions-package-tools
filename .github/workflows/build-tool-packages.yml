@@ -76,7 +76,7 @@ jobs:
         - os: ubuntu-latest
           platform: linux
           architecture: x64
-        - os: macos-13
+        - os: macos-15-intel
           platform: darwin
           architecture: x64
         - os: windows-latest
@@ -160,15 +160,26 @@ jobs:
         Write-Host "to determine if ${{ inputs.tool-name }} version was consumed from cache or if it was downloaded"
         for ($i = 0; $i -lt 200; $i++) { Get-Random }
 
+    - name: Ensure Pester Installed
+      if: env.excludewinarm == 'true'
+      run: |
+        $module = Get-Module -ListAvailable -Name Pester
+        if (-not $module -or ($module.Version -lt [Version]"5.0.0")) {
+          Install-Module Pester -Force -Scope CurrentUser -SkipPublisherCheck
+        }
+        
     - name: Run tests
       if: env.excludewinarm == 'true'
       env: 
         VERSION: ${{ inputs.tool-version }}
       run: |
-        Install-Module Pester -Force -Scope CurrentUser -SkipPublisherCheck
         Import-Module Pester
         $toolName = (Get-Culture).TextInfo.ToTitleCase("${{ inputs.tool-name }}")
-        Invoke-Pester -Script ./$toolName.Tests.ps1 -EnableExit
+        Invoke-Pester -Configuration @{
+            Run = @{ Path = "./$toolName.Tests.ps1" }
+            Should = @{ ErrorAction = 'Continue' }
+            Output = @{ EnableExit = $true }
+        }
       working-directory: ./tests
 
   publish_release:
